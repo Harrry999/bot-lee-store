@@ -16,7 +16,9 @@ def home():
     return "Bot Lee Store đang hoạt động mượt mà 24/7 nha sếp!"
 
 def run():
-    app.run(host='0.0.0.0', port=8080)
+    # Ép thằng Render tự động lấy đúng cái cổng của nó
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     t = Thread(target=run)
