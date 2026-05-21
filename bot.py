@@ -4,11 +4,28 @@ import datetime
 import asyncio 
 import json
 import os
+from flask import Flask
+from threading import Thread
+
+# ==========================================
+# 🌐 WEB GIẢ ĐỂ ĐÁNH LỪA RENDER (KEEP ALIVE)
+# ==========================================
+app = Flask(__name__)
+@app.route('/')
+def home():
+    return "Bot Lee Store đang hoạt động mượt mà 24/7 nha sếp!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 # ==========================================
 # 1. CẤU HÌNH BẢO MẬT (DÀNH CHO RENDER)
 # ==========================================
-TOKEN = os.getenv('TOKEN') # Lấy token từ biến môi trường của Render
+TOKEN = os.getenv('TOKEN')
 PREFIX = '!'
 
 intents = discord.Intents.default()
@@ -17,13 +34,11 @@ intents.members = True
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
-# --- CẤU HÌNH TÊN ROLE VIP (Sếp tạo role đúng tên này trong Discord nha) ---
 ROLE_BUYER = "𝕭𝖚𝖞𝖊𝖗"
 ROLE_1_SAO = "★"
 ROLE_2_SAO = "★★"
 ROLE_3_SAO = "★★★"
 
-# --- CẤU HÌNH LINK PR ---
 LEE_STORE_LINK = "https://discord.gg/hVjDERZ4g" 
 LINK_ANH_BANG_GIA = "https://media.discordapp.net/attachments/1449229498707869728/1503955517087682651/IMG_20260513_100202.jpg"
 
@@ -40,7 +55,7 @@ def luu_kenh_pr(danh_sach):
 
 @bot.event
 async def on_ready():
-    print(f'🤖 Bot PR & VIP đã sẵn sàng chạy trên Render!')
+    print(f'🤖 Bot PR & VIP đã thức tỉnh trên Render!')
     if not auto_pr_task.is_running(): 
         auto_pr_task.start()
 
@@ -50,24 +65,20 @@ async def on_ready():
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def done(ctx, member: discord.Member = None):
-    """Lệnh chốt đơn và cộng điểm VIP cho khách: !done @tên_khách"""
     if member is None:
         return await ctx.send("❌ Sếp quên tag tên khách rồi! Gõ như vầy nè: `!done @khách`")
         
     user_id = str(member.id)
     stats = {}
     
-    # Đọc file lưu dữ liệu đơn hàng
     if os.path.exists("buyers.json"):
         with open("buyers.json", "r") as f: stats = json.load(f)
         
-    # Cộng 1 đơn cho khách
     stats[user_id] = stats.get(user_id, 0) + 1
     done_count = stats[user_id]
     
     with open("buyers.json", "w") as f: json.dump(stats, f, indent=4)
 
-    # Tiến hành check và cấp Role VIP
     guild = ctx.guild
     roles_to_add = []
     msg_vip = ""
@@ -89,7 +100,7 @@ async def done(ctx, member: discord.Member = None):
     await ctx.send(f"🎉 **Chốt đơn thành công!**\n• Khách hàng: {member.mention}\n• Tổng số đơn đã mua: **{done_count}**\n{msg_vip}")
 
 # ==========================================
-# 📢 HỆ THỐNG AUTO PR XOÁ LÀNG XOÁ XÓM
+# 📢 HỆ THỐNG AUTO PR
 # ==========================================
 @tasks.loop(minutes=1)
 async def auto_pr_task():
@@ -110,7 +121,6 @@ async def auto_pr_task():
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def them_kenh_pr(ctx, channel_id: int):
-    """Thêm ID kênh PR bằng điện thoại: !them_kenh_pr ID"""
     danh_sach = doc_kenh_pr()
     if channel_id not in danh_sach:
         danh_sach.append(channel_id)
@@ -122,13 +132,11 @@ async def them_kenh_pr(ctx, channel_id: int):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def xem_kenh_pr(ctx):
-    """Xem danh sách kênh PR: !xem_kenh_pr"""
     await ctx.send(f"📋 **Danh sách ID kênh PR hiện tại:**\n`{doc_kenh_pr()}`")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def test_pr(ctx):
-    """Bắn thử PR ngay lập tức xem có đẹp không: !test_pr"""
     await ctx.send("⏳ Đang test PR full giao diện...")
     embed = discord.Embed(title="🌸 LEE STORE - ALL DỊCH VỤ ROBLOX 🌸", description=f"Chào mọi người! Ghé ngay Lee Store nhé!\n\n👉 **Vào ngay:** {LEE_STORE_LINK}\n━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎", color=0xFFB6C1)
     embed.set_image(url=LINK_ANH_BANG_GIA)
@@ -142,4 +150,6 @@ async def test_pr(ctx):
         except Exception as e: await ctx.send(f"❌ Lỗi kênh {ch_id}: {e}")
     await ctx.send(f"✅ Xong! Đã test thành công trên {count} kênh.")
 
+# Bật Web giả lên trước rồi mới bật Bot
+keep_alive()
 bot.run(TOKEN)
