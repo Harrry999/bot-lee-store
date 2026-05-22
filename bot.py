@@ -7,7 +7,7 @@ import os
 from flask import Flask
 from threading import Thread
 
-DATA_CHANNEL_ID = 123456789012345678  # SẾP DÁN ID KÊNH ẨN VÀO ĐÂY!
+DATA_CHANNEL_ID = 1507261916370829312  # SẾP DÁN ID KÊNH ẨN VÀO ĐÂY!
 
 # ==========================================
 # 🌐 WEB GIẢ ĐỂ ĐÁNH LỪA RENDER (KEEP ALIVE)
