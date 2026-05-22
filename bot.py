@@ -79,9 +79,6 @@ async def done(ctx, member: discord.Member = None):
         return await ctx.send("❌ Sếp quên tag tên khách rồi! Gõ như vầy nè: `!done @khách`")
         
     user_id = str(member.id)
-    stats = {}
-    
-user_id = str(member.id)
     
     # --- ĐOẠN MỚI THAY VÀO ---
     data = await tai_du_lieu()
