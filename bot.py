@@ -7,6 +7,8 @@ import os
 from flask import Flask
 from threading import Thread
 
+DATA_CHANNEL_ID = 123456789012345678  # SẾP DÁN ID KÊNH ẨN VÀO ĐÂY!
+
 # ==========================================
 # 🌐 WEB GIẢ ĐỂ ĐÁNH LỪA RENDER (KEEP ALIVE)
 # ==========================================
@@ -47,20 +49,26 @@ LINK_ANH_BANG_GIA = "https://media.discordapp.net/attachments/144922949870786972
 # ==========================================
 # 💾 HỆ THỐNG LƯU TRỮ (Kênh PR & Đơn hàng)
 # ==========================================
-def doc_kenh_pr():
-    if os.path.exists("pr_channels.json"):
-        with open("pr_channels.json", "r") as f: return json.load(f)
-    return []
+async def tai_du_lieu():
+    """Tải dữ liệu từ mây Discord"""
+    channel = bot.get_channel(DATA_CHANNEL_ID)
+    if channel:
+        async for message in channel.history(limit=1):
+            try:
+                content = message.content.strip()
+                if content.startswith("```json") and content.endswith("```"):
+                    content = content[7:-3].strip()
+                return json.loads(content)
+            except: pass
+    return {"pr_channels": [], "buyers": {}}
 
-def luu_kenh_pr(danh_sach):
-    with open("pr_channels.json", "w") as f: json.dump(danh_sach, f)
-
-@bot.event
-async def on_ready():
-    print(f'🤖 Bot PR & VIP đã thức tỉnh trên Render!')
-    if not auto_pr_task.is_running(): 
-        auto_pr_task.start()
-
+async def luu_du_lieu(data):
+    """Lưu dữ liệu lên mây Discord"""
+    channel = bot.get_channel(DATA_CHANNEL_ID)
+    if channel:
+        try: await channel.purge(limit=5)
+        except: pass
+        await channel.send(f"```json\n{json.dumps(data, indent=4)}\n```")
 # ==========================================
 # 🎫 HỆ THỐNG CẤP ROLE VIP BUYER BẰNG LỆNH CHAT
 # ==========================================
@@ -73,13 +81,18 @@ async def done(ctx, member: discord.Member = None):
     user_id = str(member.id)
     stats = {}
     
-    if os.path.exists("buyers.json"):
-        with open("buyers.json", "r") as f: stats = json.load(f)
-        
-    stats[user_id] = stats.get(user_id, 0) + 1
-    done_count = stats[user_id]
+user_id = str(member.id)
     
-    with open("buyers.json", "w") as f: json.dump(stats, f, indent=4)
+    # --- ĐOẠN MỚI THAY VÀO ---
+    data = await tai_du_lieu()
+    buyers = data.get("buyers", {})
+    
+    buyers[user_id] = buyers.get(user_id, 0) + 1
+    done_count = buyers[user_id]
+    
+    data["buyers"] = buyers
+    await luu_du_lieu(data)
+    # --------------------------
 
     guild = ctx.guild
     roles_to_add = []
@@ -101,6 +114,12 @@ async def done(ctx, member: discord.Member = None):
 
     await ctx.send(f"🎉 **Chốt đơn thành công!**\n• Khách hàng: {member.mention}\n• Tổng số đơn đã mua: **{done_count}**\n{msg_vip}")
 
+@bot.event
+async def on_ready():
+    print(f'🤖 Bot PR & VIP đã thức tỉnh trên Render!')
+    if not auto_pr_task.is_running(): 
+        auto_pr_task.start()
+
 # ==========================================
 # 📢 HỆ THỐNG AUTO PR
 # ==========================================
@@ -108,13 +127,20 @@ async def done(ctx, member: discord.Member = None):
 async def auto_pr_task():
     now = datetime.datetime.utcnow() + datetime.timedelta(hours=7)
     if now.hour == 12 and now.minute == 0:
+        data = await tai_du_lieu()
+        channels_list = data.get("pr_channels", [])
+        
+        if not channels_list:
+            return print("⚠️ Danh sách kênh PR trống, không chạy.")
+            
         embed = discord.Embed(
             title="🌸 LEE STORE - ALL DỊCH VỤ ROBLOX UY TÍN 🌸", 
             description=f"Chào mọi người! Ai có nhu cầu về Roblox - Blox Fruit thì ghé ngay Lee Store nhé!\n\n🔥 **Dịch vụ:**\n• Mua Robux tự động\n• Cày thuê Blox Fruit\n• Gift Gamepass/Perm giá rẻ\n\n👉 **Vào ngay:** {LEE_STORE_LINK}\n━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎", 
             color=0xFFB6C1
         )
         embed.set_image(url=LINK_ANH_BANG_GIA) 
-        for ch_id in doc_kenh_pr():
+        
+        for ch_id in channels_list:
             try:
                 channel = bot.get_channel(ch_id)
                 if channel: await channel.send(content="📢 @everyone ơi, ghé shop ủng hộ nào!", embed=embed)
@@ -123,27 +149,34 @@ async def auto_pr_task():
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def them_kenh_pr(ctx, channel_id: int):
-    danh_sach = doc_kenh_pr()
+    data = await tai_du_lieu()
+    danh_sach = data.get("pr_channels", [])
+    
     if channel_id not in danh_sach:
         danh_sach.append(channel_id)
-        luu_kenh_pr(danh_sach)
-        await ctx.send(f"✅ Đã thêm kênh `{channel_id}` vào danh sách PR!")
+        data["pr_channels"] = danh_sach
+        await luu_du_lieu(data) 
+        await ctx.send(f"✅ Đã thêm kênh `{channel_id}` vào mây Discord an toàn!")
     else:
         await ctx.send("⚠️ Kênh này đã có sẵn rồi sếp!")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def xem_kenh_pr(ctx):
-    await ctx.send(f"📋 **Danh sách ID kênh PR hiện tại:**\n`{doc_kenh_pr()}`")
+    data = await tai_du_lieu()
+    await ctx.send(f"📋 **Danh sách ID kênh PR hiện tại:**\n`{data.get('pr_channels', [])}`")
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def test_pr(ctx):
-    await ctx.send("⏳ Đang test PR full giao diện...")
+    await ctx.send("⏳ Đang lấy dữ liệu và test PR...")
+    data = await tai_du_lieu()
+    channels_list = data.get("pr_channels", [])
+    
     embed = discord.Embed(title="🌸 LEE STORE - ALL DỊCH VỤ ROBLOX 🌸", description=f"Chào mọi người! Ghé ngay Lee Store nhé!\n\n👉 **Vào ngay:** {LEE_STORE_LINK}\n━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎━︎", color=0xFFB6C1)
     embed.set_image(url=LINK_ANH_BANG_GIA)
     count = 0
-    for ch_id in doc_kenh_pr():
+    for ch_id in channels_list:
         try:
             channel = bot.get_channel(ch_id)
             if channel: 
